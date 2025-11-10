@@ -16,6 +16,9 @@ function AddLostItem() {
   const [imagePath, setImagePath] = useState<string>("");
   const [imageBlob, setImageBlob] = useState<Uint8Array>(new Uint8Array());
   
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
+
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
   
@@ -23,6 +26,27 @@ function AddLostItem() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [notification, setNotification] = useState<string | null>(null);
+
+  const startCamera = async (deviceId?: string) => {
+    try {
+      const constraints: MediaStreamConstraints = {
+        video: deviceId
+          ? { deviceId: { exact: deviceId } }
+          : { facingMode: "environment" },
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+
+      setMessage("");
+    } catch (err) {
+      console.error("Camera error:", err);
+      setMessage("Failed to access camera");
+    }
+  };
 
   const captureImage = async () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -53,7 +77,9 @@ function AddLostItem() {
   const stopCamera = () => {
     const stream = videoRef.current?.srcObject as MediaStream | null;
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach(track => {
+        if (track.readyState === 'live') track.stop();
+      });
       videoRef.current!.srcObject = null;
     }
   };
@@ -64,22 +90,32 @@ function AddLostItem() {
   };
 
   useEffect(() => {
-    const startCamera = async () => {
+    const loadDevices = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }
-        });
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        await navigator.mediaDevices.getUserMedia({ video: true });
+
+        const deviceList = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = deviceList.filter(device => device.kind === 'videoinput');
+        setDevices(videoDevices);
+
+        const defaultDevice = videoDevices.find(d => d.label.toLowerCase().includes('environment')) 
+          || videoDevices[0];
+        if (defaultDevice) {
+          setSelectedDeviceId(defaultDevice.deviceId);
+          startCamera(defaultDevice.deviceId);
         }
       } catch (err) {
-        console.error("Camera error:", err);
-        setMessage("Failed to access camera");
+        console.error("Error loading devices:", err);
+        setMessage("Camera access denied or unavailable");
       }
     };
-    
-    
+
+    loadDevices();
+
+    return () => stopCamera();
+  }, []);
+
+  useEffect(() => {
     startCamera();
 
     return () => stopCamera();
@@ -194,6 +230,28 @@ function AddLostItem() {
         playsInline
         className="w-48 h-36 rounded border mb-4"
       />
+
+      {devices.length > 1 && (
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1">Camera</label>
+          <select
+            value={selectedDeviceId || ''}
+            onChange={(e) => {
+              const deviceId = e.target.value || undefined;
+              setSelectedDeviceId(deviceId);
+              stopCamera();
+              if (deviceId) startCamera(deviceId);
+            }}
+            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {devices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `Camera ${devices.indexOf(device) + 1}`}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <button
         className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer"
