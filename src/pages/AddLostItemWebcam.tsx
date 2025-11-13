@@ -6,7 +6,7 @@ import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 
 type ItemType = "Phone" | "Document" | "Wallet" | "Miscellaneous";
 
-function AddLostItem() {
+function AddLostItemWebcam() {
   const navigate = useNavigate();
   const [name, setName] = useState<string>("");
   const [type, setType] = useState<ItemType>("Phone");
@@ -15,10 +15,10 @@ function AddLostItem() {
   const [contact, setContact] = useState<string>("");
   const [imagePath, setImagePath] = useState<string>("");
   const [imageBlob, setImageBlob] = useState<Uint8Array>(new Uint8Array());
-  
+
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
-
+  
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
   
@@ -145,7 +145,7 @@ function AddLostItem() {
     try {
       setLoading(true);
       setMessage("");
-
+      
       if (imagePath != "") {
         const folderPath = 'lost_images';
         const folderExist = await exists(folderPath, {
@@ -161,6 +161,7 @@ function AddLostItem() {
         await writeFile(imagePath, imageBlob, {
           baseDir: BaseDirectory.AppData,
         });
+      
       }
 
       const newItem: Omit<Item, 'id' | 'created_at'> = {
@@ -285,13 +286,13 @@ function AddLostItem() {
             <option value="Miscellaneous">Miscellaneous</option>
         </select>
       
-        <label className="block text-sm font-medium mb-1">Last Known Location</label>
+        <label className="block text-sm font-medium mb-1">Location Found</label>
         <input
           type="text"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Last Known Location"
+          placeholder="Location Found"
         />
 
         <label className="block text-sm font-medium mb-1">Description</label>
@@ -328,4 +329,4 @@ function AddLostItem() {
   );
 }
 
-export default AddLostItem;
+export default AddLostItemWebcam;

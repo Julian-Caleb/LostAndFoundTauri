@@ -123,8 +123,8 @@ export async function addItemWithId(item: Item): Promise<void> {
 }
 
 let isSyncing = false;
-const SYNC_INTERVAL_MS = 10 * 1000;
-const VPS_URL = process.env.REACT_APP_API_URL;
+const SYNC_INTERVAL_MS = 1 * 60 * 1000;
+const VPS_URL = 'VPS_URL';
 
 async function ensureDir(filepath: string) {
   const dir = filepath.substring(0, filepath.lastIndexOf('/'));
