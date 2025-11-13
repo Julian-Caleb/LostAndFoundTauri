@@ -8,5 +8,6 @@ export interface Item {
   contact: string;
   solved: boolean;
   image: string | null;
+  created_at: Date;
 }
 

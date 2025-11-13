@@ -180,7 +180,7 @@ function AddLostItem() {
       const allItems = await getAllItems();
       console.log('Total items in database after adding:', allItems.length);
 
-      setNotification("Found item added succesfully!");
+      setNotification("Lost item added succesfully!");
       
       stopCamera();
       setTimeout(() => {

@@ -6,7 +6,7 @@ import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 
 type ItemType = "Phone" | "Document" | "Wallet" | "Miscellaneous";
 
-function AddFoundItem() {
+function AddFoundItemWebcam() {
   const navigate = useNavigate();
   const [name, setName] = useState<string>("");
   const [type, setType] = useState<ItemType>("Phone");
@@ -329,4 +329,4 @@ function AddFoundItem() {
   );
 }
 
-export default AddFoundItem;
+export default AddFoundItemWebcam;

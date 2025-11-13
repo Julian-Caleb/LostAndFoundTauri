@@ -56,12 +56,20 @@ function FoundItems() {
     <div className="w-full h-full m-0">
       <div className="flex justify-between items-center mb-4 px-4">
         <h2 className="text-xl font-bold">Found Items</h2>
-        <button
-          onClick={() => navigate('/add-found-item')}
-          className="px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-400"
-        >
-          Add Found Item
-        </button>
+        <div className="flex gap-4">
+          <button
+            onClick={() => navigate('/add-found-item-webcam')}
+            className="px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-400"
+          >
+            Add Found Item (Webcam)
+          </button>
+          <button
+            onClick={() => navigate('/add-found-item-phone')}
+            className="px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-400"
+          >
+            Add Found Item (Phone)
+          </button>
+        </div>
       </div>
 
       <div className="px-4 mb-4">
