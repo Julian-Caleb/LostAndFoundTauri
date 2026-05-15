@@ -6,7 +6,7 @@ import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 import QRCode from 'qrcode';
 
-type ItemType = "Phone" | "Document" | "Wallet" | "Miscellaneous";
+type ItemType = "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
 
 interface ConnectionInfo {
   ip: string;
@@ -359,7 +359,7 @@ function AddLostItemPhone() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Item Name"
+            placeholder="e.g. Macbook"
           />
         </div>
       
@@ -371,20 +371,23 @@ function AddLostItemPhone() {
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="Phone">Phone</option>
-            <option value="Document">Document</option>
-            <option value="Wallet">Wallet</option>
+            <option value="Card">Card</option>
+            <option value="Cosplay Props">Cosplay Props</option>
+            <option value="Wallet">Walllet</option>
+            <option value="Bag / Pouch">Bag / Pouch</option>
+            <option value="Merch">Merch</option>
             <option value="Miscellaneous">Miscellaneous</option>
           </select>
         </div>
       
         <div>
-          <label className="block text-sm font-medium mb-1">Location Found</label>
+          <label className="block text-sm font-medium mb-1">Last Known Location (Optional)</label>
           <input
             type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Location Found"
+            placeholder="Last Known Location (Optional)"
           />
         </div>
 
@@ -395,18 +398,18 @@ function AddLostItemPhone() {
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Description"
+            placeholder="e.g. Warna abu-abu, ada sticker, dll."
           />
         </div>
       
         <div>
-          <label className="block text-sm font-medium mb-1">Contact</label>
+          <label className="block text-sm font-medium mb-1">Contact (Name)</label>
           <input
             type="text"
             value={contact}
             onChange={(e) => setContact(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Contact"
+            placeholder="e.g. 08123456789 (John Doe)"
           />
         </div>
 

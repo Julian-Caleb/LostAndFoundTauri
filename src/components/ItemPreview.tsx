@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Item } from "../types/Item";
-import { BaseDirectory, readFile } from '@tauri-apps/plugin-fs';
+import { BaseDirectory, mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { updateItemSolvedStatus } from "../services/database";
 import { useNavigate } from "react-router-dom";
 
@@ -15,6 +15,7 @@ function ItemPreview({ item }: ItemPreviewProps) {
   const [notification, setNotification] = useState<string | null>(null);
   const navigate = useNavigate();
 
+
   const loadImage = async (path: string) => {
     try {
       const fileData = await readFile(path, {
@@ -26,7 +27,40 @@ function ItemPreview({ item }: ItemPreviewProps) {
 
       return url; 
     } catch (err) {
-      console.error("Error reading file:", err);
+      console.error("Error reading file locally:", err);
+      
+      try {
+        console.log(`📥 Downloading image from server: ${path}`);
+        const response = await fetch(`http://167.86.87.130:3000/download-image?imagePath=${encodeURIComponent(path)}`);
+        
+        if (!response.ok) {
+          throw new Error(`Server responded with ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        const dir = path.substring(0, path.lastIndexOf('/'));
+        if (dir) {
+          try {
+            await mkdir(dir, { baseDir: BaseDirectory.AppData, recursive: true });
+          } catch (mkdirErr) {
+            console.log("Directory might already exist:", mkdirErr);
+          }
+        }
+
+        await writeFile(path, uint8Array, {
+          baseDir: BaseDirectory.AppData
+        });
+
+        console.log(`✅ Image downloaded and saved to AppData: ${path}`);
+        
+        const url = URL.createObjectURL(blob);
+        return url;
+      } catch (downloadErr) {
+        console.error("Error downloading image from server:", downloadErr);
+      }
     }
   };
 
@@ -48,15 +82,34 @@ function ItemPreview({ item }: ItemPreviewProps) {
 
   const handleSolvedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newSolved = e.target.checked;
+
+    const action = newSolved ? "mark this item as solved" : "mark this item as unsolved";
+    const confirmed = window.confirm(`Are you sure you want to ${action}?`);
+
+    if (!confirmed) {
+      e.target.checked = !newSolved;
+      return;
+    }
+
     setSolved(newSolved);
 
     try {
       await updateItemSolvedStatus(item.id, newSolved);
+
+      await fetch(`http://167.86.87.130:3000/update-solved/${item.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ solved: newSolved }),
+      });
+
       setNotification(newSolved ? "Item marked as solved!" : "Item marked as unsolved!");
     } catch (err) {
       console.error("Error updating solved status:", err);
       setNotification("Error updating status");
       setSolved(!newSolved);
+      e.target.checked = !newSolved;
     }
   };
 
@@ -84,7 +137,7 @@ function ItemPreview({ item }: ItemPreviewProps) {
               <label className="flex items-center justify-center space-x-2 cursor-pointer">
                 <input
                 type="checkbox"
-                checked={solved}
+                checked={item.solved || solved}
                 onChange={handleSolvedChange}
                 className="w-4 h-4"
                 />

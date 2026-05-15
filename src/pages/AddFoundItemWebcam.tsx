@@ -4,7 +4,7 @@ import { addItem, getAllItems } from "../services/database";
 import type { Item } from "../types/Item";
 import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 
-type ItemType = "Phone" | "Document" | "Wallet" | "Miscellaneous";
+type ItemType = "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
 
 function AddFoundItemWebcam() {
   const navigate = useNavigate();
@@ -12,7 +12,6 @@ function AddFoundItemWebcam() {
   const [type, setType] = useState<ItemType>("Phone");
   const [location, setLocation] = useState<string>("");
   const [description, setDescription] = useState<string>("");
-  const [contact, setContact] = useState<string>("");
   const [imagePath, setImagePath] = useState<string>("");
   const [imageBlob, setImageBlob] = useState<Uint8Array>(new Uint8Array());
 
@@ -170,7 +169,7 @@ function AddFoundItemWebcam() {
         type,
         location,
         description,
-        contact,
+        contact: "",
         solved: false,
         image: imagePath
       };
@@ -271,7 +270,7 @@ function AddFoundItemWebcam() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Item Name"
+          placeholder="e.g. Macbook"
         />
       
         <label className="block text-sm font-medium mb-1">Type</label>
@@ -281,18 +280,21 @@ function AddFoundItemWebcam() {
             className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
             <option value="Phone">Phone</option>
-            <option value="Document">Document</option>
-            <option value="Wallet">Wallet</option>
+            <option value="Card">Card</option>
+            <option value="Cosplay Props">Cosplay Props</option>
+            <option value="Wallet">Walllet</option>
+            <option value="Bag / Pouch">Bag / Pouch</option>
+            <option value="Merch">Merch</option>
             <option value="Miscellaneous">Miscellaneous</option>
         </select>
       
-        <label className="block text-sm font-medium mb-1">Location Found</label>
+        <label className="block text-sm font-medium mb-1">Hall Location (Found Location, Optional)</label>
         <input
           type="text"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Location Found"
+          placeholder="e.g. Hall 10 (Docking Hall 6)"
         />
 
         <label className="block text-sm font-medium mb-1">Description</label>
@@ -301,16 +303,7 @@ function AddFoundItemWebcam() {
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
           className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Description"
-        />
-      
-        <label className="block text-sm font-medium mb-1">Contact</label>
-        <input
-          type="text"
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Contact"
+          placeholder="e.g. Warna abu-abu, ada sticker, dll."
         />
 
         <button

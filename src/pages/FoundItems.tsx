@@ -29,13 +29,20 @@ function FoundItems() {
     }
   };
 
-  const filteredItems = foundItems.filter((item) => {
+  const filteredItems = foundItems
+  .filter((item) => {
     const term = searchTerm.toLowerCase();
     return (
       item.name.toLowerCase().includes(term) ||
       item.type.toLowerCase().includes(term) ||
-      item.location.toLowerCase().includes(term)
+      item.location.toLowerCase().includes(term) ||
+      item.contact.toLowerCase().includes(term) ||
+      item.description.toLowerCase().includes(term)
     );
+  })
+  .sort((a, b) => {
+    if (a.solved === b.solved) return 0;
+    return a.solved ? 1 : -1;
   });
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);

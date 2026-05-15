@@ -1,9 +1,15 @@
 import Database from '@tauri-apps/plugin-sql';
 import type { Item } from '../types/Item';
-import { BaseDirectory, exists, mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs';
+import { BaseDirectory, exists, mkdir, readFile, writeFile, remove } from '@tauri-apps/plugin-fs';
 let db: Database | null = null;
 
 export async function initDatabase() {
+
+  // await remove('', {
+  //   baseDir: BaseDirectory.AppData,
+  //   recursive: true,
+  // });
+
   if (db) return db;
 
   db = await Database.load('sqlite:lostfound.db');
@@ -63,6 +69,7 @@ export async function addItem(item: Omit<Item, 'id' | 'created_at'>): Promise<vo
 
 export async function updateItemSolvedStatus(id: string, solved: boolean): Promise<void> {
   const database = await initDatabase();
+  console.log(`Setting item ${id} to ${solved}`);
   await database.execute(
     `UPDATE items SET solved = $1 WHERE id = $2`,
     [solved ? 1 : 0, id]
@@ -123,8 +130,9 @@ export async function addItemWithId(item: Item): Promise<void> {
 }
 
 let isSyncing = false;
-const SYNC_INTERVAL_MS = 1 * 60 * 1000;
-const VPS_URL = 'VPS_URL';
+const SYNC_INTERVAL_MS = 30 * 1000;
+// const VPS_URL = import.meta.env.CONTABO_VPS;
+const VPS_URL = "";
 
 async function ensureDir(filepath: string) {
   const dir = filepath.substring(0, filepath.lastIndexOf('/'));
@@ -193,7 +201,7 @@ export async function syncWithServer(): Promise<void> {
           ) {
             if (!(await exists(remote.image, { baseDir: BaseDirectory.AppData }))) {
               const imageUrl = url.href;
-              console.log(imageUrl);
+              console.log("Downloaded image:" + imageUrl);
               const res = await fetch(imageUrl);
               if (res.ok) {
                 const arrayBuffer = await res.arrayBuffer();
@@ -239,4 +247,23 @@ export async function syncWithServer(): Promise<void> {
 export function startAutoSync(): void {
   syncWithServer();
   setInterval(syncWithServer, SYNC_INTERVAL_MS);
+}
+
+/**
+ * Wipe the local SQLite database, image folders, and sync timestamp.
+ * Use for dev/reset purposes only.
+ */
+export async function resetLocalData(): Promise<void> {
+  if (db) {
+    await db.close();
+    db = null;
+  }
+
+  await remove('lostfound.db', { baseDir: BaseDirectory.AppData });
+  await remove('lost_images', { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {});
+  await remove('found_images', { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {});
+
+  localStorage.removeItem('inventory_last_sync');
+
+  console.log('🗑️ Local data wiped');
 }

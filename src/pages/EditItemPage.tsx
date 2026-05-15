@@ -71,10 +71,13 @@ function EditItemPage() {
         onChange={(e) => setItem({ ...item, type: e.target.value as Item["type"] })}
         className="border p-2 w-full mb-4 rounded"
         >
-        <option value="Phone">Phone</option>
-        <option value="Document">Document</option>
-        <option value="Wallet">Wallet</option>
-        <option value="Miscellaneous">Miscellaneous</option>
+            <option value="Phone">Phone</option>
+            <option value="Card">Card</option>
+            <option value="Cosplay Props">Cosplay Props</option>
+            <option value="Wallet">Walllet</option>
+            <option value="Bag / Pouch">Bag / Pouch</option>
+            <option value="Merch">Merch</option>
+            <option value="Miscellaneous">Miscellaneous</option>
       </select>
 
       <label className="block mb-2 font-semibold">Location</label>

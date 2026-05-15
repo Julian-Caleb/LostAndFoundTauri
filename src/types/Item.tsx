@@ -1,8 +1,9 @@
 export interface Item {
   id: string;
+  code?: string;
   name: string;
   status: "lost" | "found";
-  type: "Phone" | "Document" | "Wallet" | "Miscellaneous";
+  type: "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
   location: string;
   description: string;
   contact: string;
