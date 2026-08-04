@@ -13,6 +13,7 @@ interface ConnectionInfo {
   port: number;
 }
 
+// Receive images from phone and add item.
 function AddLostItemPhone() {
   const navigate = useNavigate();
   const [name, setName] = useState<string>("");
@@ -36,13 +37,16 @@ function AddLostItemPhone() {
   const [notification, setNotification] = useState<string | null>(null);
   const pollingIntervalRef = useRef<number | null>(null);
 
-  const startTcpServer = async () => {
+  // Start TCP Server
+  // Start Tcp server and generate QR code for phone.
+const startTcpServer = async () => {
     try {
       setMessage("Starting server...");
       const result: ConnectionInfo = await invoke('start_tcp_server');
       setConnectionInfo(result);
       setServerRunning(true);
       
+      // Generate QR Code
       const connectionData = JSON.stringify({
         ip: result.ip,
         port: result.port,
@@ -61,6 +65,7 @@ function AddLostItemPhone() {
       setQrCodeUrl(qrUrl);
       setMessage(`Server started on ${result.ip}:${result.port}`);
       
+      // Start polling for images
       startPolling();
     } catch (error) {
       console.error('Failed to start TCP server:', error);
@@ -69,7 +74,9 @@ function AddLostItemPhone() {
     }
   };
 
-  const startPolling = () => {
+  // Poll for incoming images
+  // Poll backend periodically for incoming phone images.
+const startPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
     }
@@ -88,6 +95,7 @@ function AddLostItemPhone() {
           const fullPath = `${folderPath}/${fileName}`;
           setImagePath(fullPath);
 
+          // Display preview on canvas
           const blob = new Blob([bytes], { type: 'image/jpeg' });
           const url = URL.createObjectURL(blob);
           const img = new Image();
@@ -107,20 +115,23 @@ function AddLostItemPhone() {
           setMessage("Image received successfully!");
         }
       } catch (error) {
-        console.error('Polling error:', error);
-        setMessage("Polling error: " + error);
+        // No image available yet, continue polling
+        // Don't log errors to avoid console spam
       }
-    }, 500); 
+    }, 500); // Poll every 500ms
   };
 
-  const stopPolling = () => {
+  // Stop polling for incoming phone images.
+const stopPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
   };
 
-  const stopTcpServer = async () => {
+  // Stop TCP Server
+  // Stop Tcp server and clear connection state.
+const stopTcpServer = async () => {
     try {
       stopPolling();
       await invoke('stop_tcp_server');
@@ -135,7 +146,8 @@ function AddLostItemPhone() {
     }
   };
 
-  const goBack = () => {
+  // Stop polling and navigate back home.
+const goBack = () => {
     stopPolling();
     if (serverRunning) {
       stopTcpServer();
@@ -144,6 +156,7 @@ function AddLostItemPhone() {
   };
 
   useEffect(() => {
+    // Auto-start TCP server when component mounts
     startTcpServer();
 
     return () => {
@@ -166,7 +179,8 @@ function AddLostItemPhone() {
     }
   }, [notification]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Write received image to disk and create database item.
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!imagePath) {

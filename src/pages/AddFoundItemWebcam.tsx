@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { registerItemWithServer } from "../services/database";
+import { addItem, getAllItems } from "../services/database";
 import type { Item } from "../types/Item";
 import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 
 type ItemType = "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
 
+// Capture and add found item using webcam.
 function AddFoundItemWebcam() {
   const navigate = useNavigate();
   const [name, setName] = useState<string>("");
@@ -17,19 +18,17 @@ function AddFoundItemWebcam() {
 
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
-
+  
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
-
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [notification, setNotification] = useState<string | null>(null);
 
-  // New: holds the registered item code returned from the server
-  const [itemCode, setItemCode] = useState<string | null>(null);
-
-  const startCamera = async (deviceId?: string) => {
+  // Start video stream from selected camera device.
+const startCamera = async (deviceId?: string) => {
     try {
       const constraints: MediaStreamConstraints = {
         video: deviceId
@@ -50,7 +49,8 @@ function AddFoundItemWebcam() {
     }
   };
 
-  const captureImage = async () => {
+  // Capture current video frame as JPEG blob.
+const captureImage = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
@@ -76,7 +76,8 @@ function AddFoundItemWebcam() {
     setImagePath(fullPath);
   };
 
-  const stopCamera = () => {
+  // Stop and release active camera stream tracks.
+const stopCamera = () => {
     const stream = videoRef.current?.srcObject as MediaStream | null;
     if (stream) {
       stream.getTracks().forEach(track => {
@@ -86,13 +87,15 @@ function AddFoundItemWebcam() {
     }
   };
 
-  const goBack = () => {
+  // Stop camera and navigate back home.
+const goBack = () => {
     stopCamera();
     navigate('/');
   };
 
   useEffect(() => {
-    const loadDevices = async () => {
+    // Enumerate video devices and start default camera.
+const loadDevices = async () => {
       try {
         await navigator.mediaDevices.getUserMedia({ video: true });
 
@@ -100,7 +103,7 @@ function AddFoundItemWebcam() {
         const videoDevices = deviceList.filter(device => device.kind === 'videoinput');
         setDevices(videoDevices);
 
-        const defaultDevice = videoDevices.find(d => d.label.toLowerCase().includes('environment'))
+        const defaultDevice = videoDevices.find(d => d.label.toLowerCase().includes('environment')) 
           || videoDevices[0];
         if (defaultDevice) {
           setSelectedDeviceId(defaultDevice.deviceId);
@@ -118,24 +121,38 @@ function AddFoundItemWebcam() {
   }, []);
 
   useEffect(() => {
+    startCamera();
+
+    return () => stopCamera();
+  }, []);
+
+  useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => {
         setNotification(null);
       }, 3000);
 
-      return () => clearTimeout(timer);
+      return () => {
+        stopCamera();
+        clearTimeout(timer);
+      };
     }
   }, [notification]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Save captured image and item data to database.
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // if (!name || !type || !location || !description || !contact) {
+    //   setMessage("Please fill all fields");
+    //   return;
+    // }
 
     try {
       setLoading(true);
       setMessage("");
-
-      // Save captured image to local AppData folder
-      if (imagePath !== "") {
+      
+      if (imagePath != "") {
         const folderPath = 'found_images';
         const folderExist = await exists(folderPath, {
           baseDir: BaseDirectory.AppData,
@@ -150,6 +167,7 @@ function AddFoundItemWebcam() {
         await writeFile(imagePath, imageBlob, {
           baseDir: BaseDirectory.AppData,
         });
+      
       }
 
       const newItem: Omit<Item, 'id' | 'created_at'> = {
@@ -160,19 +178,21 @@ function AddFoundItemWebcam() {
         description,
         contact: "",
         solved: false,
-        image: imagePath,
+        image: imagePath
       };
 
-      // POST to server, get unique code back, and save locally
-      const code = await registerItemWithServer(
-        newItem,
-        imageBlob.length > 0 ? imageBlob : undefined,
-        imagePath || undefined
-      );
+      await addItem(newItem);
+      setMessage("Item added successfully!");
+      
+      const allItems = await getAllItems();
+      console.log('Total items in database after adding:', allItems.length);
 
+      setNotification("Found item added succesfully!");
+      
       stopCamera();
-      setItemCode(code);
-
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
     } catch (error) {
       console.error('Error adding item:', error);
       setMessage("Failed to add item: " + error);
@@ -182,61 +202,29 @@ function AddFoundItemWebcam() {
     }
   };
 
-  // ── Success screen: show item code prominently ──────────────────────────────
-  if (itemCode) {
-    return (
-      <div className="w-full max-w-2xl mx-auto p-6 flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="w-full bg-green-50 border-2 border-green-400 rounded-2xl p-8 text-center shadow-md">
-          <div className="text-green-500 text-5xl mb-4">✅</div>
-          <h2 className="text-xl font-semibold text-green-700 mb-1">Item Registered!</h2>
-          <p className="text-gray-500 text-sm mb-6">Write this code on the item label</p>
-
-          <div className="bg-white border-2 border-green-300 rounded-xl px-8 py-5 inline-block mb-6">
-            <span className="text-4xl font-mono font-bold tracking-[0.2em] text-green-800">
-              {itemCode}
-            </span>
-          </div>
-
-          <p className="text-xs text-gray-400 mb-8">
-            Code format: <span className="font-mono">[Status]-[Type]-[Sequence]</span>
-          </p>
-
-          <button
-            onClick={() => navigate('/')}
-            className="px-8 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium text-lg transition-colors"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Main form ───────────────────────────────────────────────────────────────
   return (
     <div className="w-full max-w-2xl mx-auto p-6">
       {notification && (
         <div className="fixed bottom-6 right-6 z-50 animate-fade-in">
           <div className={`px-6 py-3 rounded-lg shadow-lg ${
-            notification.includes("Error")
-              ? "bg-red-500 text-white"
+            (notification.includes("Error"))
+              ? "bg-red-500 text-white" 
               : "bg-green-500 text-white"
           }`}>
             {notification}
           </div>
         </div>
       )}
-
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Add Found Item</h2>
         <button
-          onClick={goBack}
+          onClick={() => goBack()}
           className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
         >
           Back
         </button>
       </div>
-
+      
       {message && (
         <div className={`mb-4 p-3 rounded ${message.includes('successfully') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
           {message}
@@ -273,16 +261,16 @@ function AddFoundItemWebcam() {
       )}
 
       <button
-        className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer mb-2"
+        className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer"
         onClick={captureImage}
       >
         Capture
       </button>
-
+  
       <canvas className="mb-4" ref={canvasRef}></canvas>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-
+        
         <label className="block text-sm font-medium mb-1">Item Name</label>
         <input
           type="text"
@@ -291,22 +279,22 @@ function AddFoundItemWebcam() {
           className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="e.g. Macbook"
         />
-
+      
         <label className="block text-sm font-medium mb-1">Type</label>
         <select
-          value={type}
-          onChange={(e) => setType(e.target.value as ItemType)}
-          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={type}
+            onChange={(e) => setType(e.target.value as ItemType)}
+            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="Phone">Phone</option>
-          <option value="Card">Card</option>
-          <option value="Cosplay Props">Cosplay Props</option>
-          <option value="Wallet">Wallet</option>
-          <option value="Bag / Pouch">Bag / Pouch</option>
-          <option value="Merch">Merch</option>
-          <option value="Miscellaneous">Miscellaneous</option>
+            <option value="Phone">Phone</option>
+            <option value="Card">Card</option>
+            <option value="Cosplay Props">Cosplay Props</option>
+            <option value="Wallet">Walllet</option>
+            <option value="Bag / Pouch">Bag / Pouch</option>
+            <option value="Merch">Merch</option>
+            <option value="Miscellaneous">Miscellaneous</option>
         </select>
-
+      
         <label className="block text-sm font-medium mb-1">Hall Location (Found Location, Optional)</label>
         <input
           type="text"
@@ -329,12 +317,12 @@ function AddFoundItemWebcam() {
           type="submit"
           disabled={loading}
           className={`w-full py-2 px-4 rounded text-white font-medium ${
-            loading
-              ? 'bg-gray-400 cursor-not-allowed'
+            loading 
+              ? 'bg-gray-400 cursor-not-allowed' 
               : 'bg-blue-500 hover:bg-blue-600'
           }`}
         >
-          {loading ? 'Registering...' : 'Add Found Item'}
+          {loading ? 'Adding...' : 'Add Found Item'}
         </button>
       </form>
     </div>

@@ -1,15 +1,16 @@
 import Database from '@tauri-apps/plugin-sql';
 import type { Item } from '../types/Item';
 import { BaseDirectory, exists, mkdir, readFile, writeFile, remove } from '@tauri-apps/plugin-fs';
-import dotenv from "dotenv";
-
-dotenv.config();
 let db: Database | null = null;
-let isSyncing = false;
-const SYNC_INTERVAL_MS = 30 * 1000;
-export const VPS_URL = process.env.VPS_URL;
 
+// Initialize or open the local Sqlite database.
 export async function initDatabase() {
+
+  // await remove('', {
+  //   baseDir: BaseDirectory.AppData,
+  //   recursive: true,
+  // });
+
   if (db) return db;
 
   db = await Database.load('sqlite:lostfound.db');
@@ -25,7 +26,6 @@ export async function initDatabase() {
       contact TEXT NOT NULL,
       solved INTEGER DEFAULT 0,
       image TEXT,
-      item_code TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -34,6 +34,7 @@ export async function initDatabase() {
   return db;
 }
 
+// Return found items ordered by newest.
 export async function getFoundItems(): Promise<Item[]> {
   const database = await initDatabase();
   return database.select<Item[]>(
@@ -41,6 +42,7 @@ export async function getFoundItems(): Promise<Item[]> {
   );
 }
 
+// Return lost items ordered by newest.
 export async function getLostItems(): Promise<Item[]> {
   const database = await initDatabase();
   return database.select<Item[]>(
@@ -48,6 +50,7 @@ export async function getLostItems(): Promise<Item[]> {
   );
 }
 
+// Return all items ordered by newest.
 export async function getAllItems(): Promise<Item[]> {
   const database = await initDatabase();
   return database.select<Item[]>(
@@ -55,19 +58,21 @@ export async function getAllItems(): Promise<Item[]> {
   );
 }
 
+// Insert new item into local database.
 export async function addItem(item: Omit<Item, 'id' | 'created_at'>): Promise<void> {
   const database = await initDatabase();
   const id = crypto.randomUUID();
 
   await database.execute(
-    `INSERT INTO items (id, name, status, type, location, description, contact, solved, image, item_code)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [id, item.name, item.status, item.type, item.location, item.description, item.contact, item.solved ? 1 : 0, item.image, item.item_code ?? null]
+    `INSERT INTO items (id, name, status, type, location, description, contact, solved, image)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [id, item.name, item.status, item.type, item.location, item.description, item.contact, item.solved ? 1 : 0, item.image]
   );
 
   console.log('Item added successfully:', id);
 }
 
+// Update item's solved flag in database.
 export async function updateItemSolvedStatus(id: string, solved: boolean): Promise<void> {
   const database = await initDatabase();
   console.log(`Setting item ${id} to ${solved}`);
@@ -77,26 +82,27 @@ export async function updateItemSolvedStatus(id: string, solved: boolean): Promi
   );
 }
 
+// Retrieve single item by id.
 export async function getItemById(id: string): Promise<Item | null> {
   const database = await initDatabase();
   const results = await database.select<Item[]>("SELECT * FROM items WHERE id = $1", [id]);
   return results.length > 0 ? results[0] : null;
 }
 
+// Update all fields of an existing item.
 export async function updateItem(item: Item): Promise<void> {
   const database = await initDatabase();
   await database.execute(
     `UPDATE items 
-     SET name        = $1,
-         type        = $2,
-         location    = $3,
-         description = $4,
-         contact     = $5,
-         status      = $6,
-         solved      = $7,
-         image       = $8,
-         item_code   = $9
-     WHERE id = $10`,
+    SET name = $1, 
+        type = $2, 
+        location = $3, 
+        description = $4, 
+        contact = $5, 
+        status = $6, 
+        solved = $7, 
+        image = $8
+    WHERE id = $9`,
     [
       item.name,
       item.type,
@@ -106,17 +112,17 @@ export async function updateItem(item: Item): Promise<void> {
       item.status,
       item.solved ? 1 : 0,
       item.image,
-      item.item_code ?? null,
       item.id,
     ]
   );
 }
 
+// Insert item using provided id and timestamp.
 export async function addItemWithId(item: Item): Promise<void> {
   const database = await initDatabase();
   await database.execute(
-    `INSERT INTO items (id, name, status, type, location, description, contact, solved, image, item_code, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    `INSERT INTO items (id, name, status, type, location, description, contact, solved, image, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       item.id,
       item.name,
@@ -127,48 +133,17 @@ export async function addItemWithId(item: Item): Promise<void> {
       item.contact,
       item.solved ? 1 : 0,
       item.image,
-      item.item_code ?? null,
       item.created_at,
     ]
   );
 }
 
-export async function registerItemWithServer(
-  item: Omit<Item, 'id' | 'created_at'>,
-  imageBlob?: Uint8Array,
-  imagePath?: string
-): Promise<string> {
-  const id = crypto.randomUUID();
-  const created_at = new Date().toISOString();
+let isSyncing = false;
+const SYNC_INTERVAL_MS = 30 * 1000;
+// const VPS_URL = import.meta.env.CONTABO_VPS;
+const VPS_URL = "";
 
-  const fullItem: Item = { ...item, id, created_at };
-
-  const formData = new FormData();
-  formData.append('item', JSON.stringify(fullItem));
-
-  if (imageBlob && imageBlob.length > 0 && imagePath) {
-    const filename = imagePath.split('/').pop() ?? 'image.jpg';
-    formData.append('image', new Blob([imageBlob.buffer.slice(0) as ArrayBuffer], { type: 'image/jpeg' }), filename);
-    formData.append('imagePath', imagePath);
-  }
-
-  const res = await fetch(`${VPS_URL}/register-item`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Server registration failed (${res.status}): ${body}`);
-  }
-
-  const { itemCode } = await res.json();
-
-  await addItemWithId({ ...fullItem, image: imagePath ?? item.image, item_code: itemCode });
-
-  return itemCode as string;
-}
-
+// Ensure local image directory exists before writes.
 async function ensureDir(filepath: string) {
   const dir = filepath.substring(0, filepath.lastIndexOf('/'));
   const folderExist = await exists(dir, {
@@ -182,6 +157,7 @@ async function ensureDir(filepath: string) {
   }
 }
 
+// Sync local items and images with remote VPS.
 export async function syncWithServer(): Promise<void> {
   if (isSyncing) return;
   isSyncing = true;
@@ -191,7 +167,7 @@ export async function syncWithServer(): Promise<void> {
 
     const localItems = await getAllItems();
     for (const item of localItems) {
-      let dbImagePath = item.image;
+      let dbImagePath = item.image; 
 
       if (dbImagePath && !dbImagePath.startsWith('http')) {
         const localFullPath = dbImagePath;
@@ -227,6 +203,7 @@ export async function syncWithServer(): Promise<void> {
     for (const remote of remoteItems) {
       if (remote.image) {
         try {
+          console.log(remote.image);
           const url = new URL(remote.image, VPS_URL);
 
           if (
@@ -235,6 +212,7 @@ export async function syncWithServer(): Promise<void> {
           ) {
             if (!(await exists(remote.image, { baseDir: BaseDirectory.AppData }))) {
               const imageUrl = url.href;
+              console.log("Downloaded image:" + imageUrl);
               const res = await fetch(imageUrl);
               if (res.ok) {
                 const arrayBuffer = await res.arrayBuffer();
@@ -257,7 +235,6 @@ export async function syncWithServer(): Promise<void> {
         contact: remote.contact,
         solved: Boolean(remote.solved),
         image: remote.image || undefined,
-        item_code: remote.item_code || undefined,
         created_at: remote.local_created_at || remote.created_at,
       };
 
@@ -278,11 +255,17 @@ export async function syncWithServer(): Promise<void> {
   }
 }
 
+// Start periodic automatic synchronization in background.
 export function startAutoSync(): void {
   syncWithServer();
   setInterval(syncWithServer, SYNC_INTERVAL_MS);
 }
 
+/**
+ * Wipe the local SQLite database, image folders, and sync timestamp.
+ * Use for dev/reset purposes only.
+ */
+// Wipe local database, images, and sync timestamp.
 export async function resetLocalData(): Promise<void> {
   if (db) {
     await db.close();

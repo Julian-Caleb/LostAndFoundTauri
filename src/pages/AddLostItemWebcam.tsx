@@ -6,6 +6,7 @@ import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 
 type ItemType = "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
 
+// Capture and add lost item using webcam.
 function AddLostItemWebcam() {
   const navigate = useNavigate();
   const [name, setName] = useState<string>("");
@@ -27,7 +28,8 @@ function AddLostItemWebcam() {
 
   const [notification, setNotification] = useState<string | null>(null);
 
-  const startCamera = async (deviceId?: string) => {
+  // Start video stream from selected camera device.
+const startCamera = async (deviceId?: string) => {
     try {
       const constraints: MediaStreamConstraints = {
         video: deviceId
@@ -48,7 +50,8 @@ function AddLostItemWebcam() {
     }
   };
 
-  const captureImage = async () => {
+  // Capture current video frame as JPEG blob.
+const captureImage = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
@@ -74,7 +77,8 @@ function AddLostItemWebcam() {
     setImagePath(fullPath);
   };
 
-  const stopCamera = () => {
+  // Stop and release active camera stream tracks.
+const stopCamera = () => {
     const stream = videoRef.current?.srcObject as MediaStream | null;
     if (stream) {
       stream.getTracks().forEach(track => {
@@ -84,13 +88,15 @@ function AddLostItemWebcam() {
     }
   };
 
-  const goBack = () => {
+  // Stop camera and navigate back home.
+const goBack = () => {
     stopCamera();
     navigate('/');
   };
 
   useEffect(() => {
-    const loadDevices = async () => {
+    // Enumerate video devices and start default camera.
+const loadDevices = async () => {
       try {
         await navigator.mediaDevices.getUserMedia({ video: true });
 
@@ -134,7 +140,8 @@ function AddLostItemWebcam() {
     }
   }, [notification]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Save captured image and item data to database.
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // if (!name || !type || !location || !description || !contact) {

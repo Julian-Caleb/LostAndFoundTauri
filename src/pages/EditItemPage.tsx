@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { Item } from "../types/Item";
 import { getItemById, updateItem } from "../services/database";
 
+// Load and edit a single item.
 function EditItemPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -11,7 +12,8 @@ function EditItemPage() {
   const [notification, setNotification] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadItem = async () => {
+    // Retrieve item by id from database.
+const loadItem = async () => {
       if (!id) return;
       const foundItem = await getItemById(id);
       if (foundItem) setItem(foundItem);
@@ -29,7 +31,8 @@ function EditItemPage() {
     }
   }, [notification]);
 
-  const handleSave = async () => {
+  // Save updated item and navigate back.
+const handleSave = async () => {
     if (!item) return;
     await updateItem(item);
     setNotification("Item updated succesfully!");

@@ -3,11 +3,13 @@ import LostItems from "./LostItems";
 import FoundItems from "./FoundItems";
 import { resetLocalData } from "../services/database";
 
+// Toggle views and reset local data.
 function Homepage() {
   const [activeView, setActiveView] = useState<"lost" | "found">('lost');
   const [resetting, setResetting] = useState(false);
 
-  async function handleReset() {
+  // Confirm and wipe all local application data.
+async function handleReset() {
     const confirmed = window.confirm(
       'This will delete all local data and sync history. Are you sure?'
     );

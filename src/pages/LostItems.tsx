@@ -4,6 +4,7 @@ import ItemPreview from "../components/ItemPreview";
 import { getLostItems } from "../services/database";
 import type { Item } from "../types/Item";
 
+// Display paginated list of lost items.
 function LostItems() {
   const navigate = useNavigate();
   const [lostItems, setLostItems] = useState<Item[]>([]);
@@ -16,7 +17,8 @@ function LostItems() {
     loadItems();
   }, []);
 
-  const loadItems = async () => {
+  // Fetch lost items from local database.
+const loadItems = async () => {
     try {
       setLoading(true);
       const items = await getLostItems();
@@ -49,7 +51,8 @@ function LostItems() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentItems = filteredItems.slice(startIndex, startIndex + itemsPerPage);
   
-  const goToPage = (page: number) => {
+  // Navigate to specified pagination page.
+const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { registerItemWithServer } from "../services/database";
+import { addItem, getAllItems } from "../services/database";
 import type { Item } from "../types/Item";
 import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
@@ -13,6 +13,7 @@ interface ConnectionInfo {
   port: number;
 }
 
+// Receive phone image and create found item.
 function AddFoundItemPhone() {
   const navigate = useNavigate();
   const [name, setName] = useState<string>("");
@@ -30,22 +31,21 @@ function AddFoundItemPhone() {
   
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
-
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const pollingIntervalRef = useRef<number | null>(null);
 
-  // New: holds the registered item code returned from the server
-  const [itemCode, setItemCode] = useState<string | null>(null);
-
   // Start TCP Server
-  const startTcpServer = async () => {
+  // Start Tcp server and generate QR code for phone.
+const startTcpServer = async () => {
     try {
       setMessage("Starting server...");
       const result: ConnectionInfo = await invoke('start_tcp_server');
       setConnectionInfo(result);
       setServerRunning(true);
       
+      // Generate QR Code
       const connectionData = JSON.stringify({
         ip: result.ip,
         port: result.port,
@@ -64,6 +64,7 @@ function AddFoundItemPhone() {
       setQrCodeUrl(qrUrl);
       setMessage(`Server started on ${result.ip}:${result.port}`);
       
+      // Start polling for images
       startPolling();
     } catch (error) {
       console.error('Failed to start TCP server:', error);
@@ -73,7 +74,8 @@ function AddFoundItemPhone() {
   };
 
   // Poll for incoming images
-  const startPolling = () => {
+  // Poll backend periodically for incoming phone images.
+const startPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
     }
@@ -92,6 +94,7 @@ function AddFoundItemPhone() {
           const fullPath = `${folderPath}/${fileName}`;
           setImagePath(fullPath);
 
+          // Display preview on canvas
           const blob = new Blob([bytes], { type: 'image/jpeg' });
           const url = URL.createObjectURL(blob);
           const img = new Image();
@@ -112,11 +115,13 @@ function AddFoundItemPhone() {
         }
       } catch (error) {
         // No image available yet, continue polling
+        // Don't log errors to avoid console spam
       }
-    }, 500);
+    }, 500); // Poll every 500ms
   };
 
-  const stopPolling = () => {
+  // Stop polling for incoming phone images.
+const stopPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
@@ -124,7 +129,8 @@ function AddFoundItemPhone() {
   };
 
   // Stop TCP Server
-  const stopTcpServer = async () => {
+  // Stop Tcp server and clear connection state.
+const stopTcpServer = async () => {
     try {
       stopPolling();
       await invoke('stop_tcp_server');
@@ -139,7 +145,8 @@ function AddFoundItemPhone() {
     }
   };
 
-  const goBack = () => {
+  // Stop polling and navigate back home.
+const goBack = () => {
     stopPolling();
     if (serverRunning) {
       stopTcpServer();
@@ -148,6 +155,7 @@ function AddFoundItemPhone() {
   };
 
   useEffect(() => {
+    // Auto-start TCP server when component mounts
     startTcpServer();
 
     return () => {
@@ -164,11 +172,14 @@ function AddFoundItemPhone() {
         setNotification(null);
       }, 3000);
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+      };
     }
   }, [notification]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Write received image to disk and create database item.
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!imagePath) {
@@ -181,7 +192,6 @@ function AddFoundItemPhone() {
       setLoading(true);
       setMessage("");
       
-      // Save image to local AppData folder
       const folderPath = 'found_images';
       const folderExist = await exists(folderPath, {
         baseDir: BaseDirectory.AppData,
@@ -205,23 +215,25 @@ function AddFoundItemPhone() {
         description,
         contact: "",
         solved: false,
-        image: imagePath,
+        image: imagePath
       };
 
-      // Register with server and get the unique code back
-      const code = await registerItemWithServer(
-        newItem,
-        imageBlob.length > 0 ? imageBlob : undefined,
-        imagePath || undefined
-      );
+      await addItem(newItem);
+      setMessage("Item added successfully!");
+      
+      const allItems = await getAllItems();
+      console.log('Total items in database after adding:', allItems.length);
 
+      setNotification("Found item added successfully!");
+      
       stopPolling();
       if (serverRunning) {
         await stopTcpServer();
       }
-
-      setItemCode(code);
-
+      
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
     } catch (error) {
       console.error('Error adding item:', error);
       setMessage("Failed to add item: " + error);
@@ -231,37 +243,6 @@ function AddFoundItemPhone() {
     }
   };
 
-  // ── Success screen: show item code prominently ──────────────────────────────
-  if (itemCode) {
-    return (
-      <div className="w-full max-w-2xl mx-auto p-6 flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="w-full bg-green-50 border-2 border-green-400 rounded-2xl p-8 text-center shadow-md">
-          <div className="text-green-500 text-5xl mb-4">✅</div>
-          <h2 className="text-xl font-semibold text-green-700 mb-1">Item Registered!</h2>
-          <p className="text-gray-500 text-sm mb-6">Write this code on the item label</p>
-
-          <div className="bg-white border-2 border-green-300 rounded-xl px-8 py-5 inline-block mb-6">
-            <span className="text-4xl font-mono font-bold tracking-[0.2em] text-green-800">
-              {itemCode}
-            </span>
-          </div>
-
-          <p className="text-xs text-gray-400 mb-8">
-            Code format: <span className="font-mono">[Status]-[Type]-[Sequence]</span>
-          </p>
-
-          <button
-            onClick={() => navigate('/')}
-            className="px-8 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium text-lg transition-colors"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Main form ───────────────────────────────────────────────────────────────
   return (
     <div className="w-full max-w-2xl mx-auto p-6">
       {notification && (
@@ -279,7 +260,7 @@ function AddFoundItemPhone() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Add Found Item</h2>
         <button
-          onClick={goBack}
+          onClick={() => goBack()}
           className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
         >
           Back
@@ -398,7 +379,7 @@ function AddFoundItemPhone() {
             <option value="Phone">Phone</option>
             <option value="Card">Card</option>
             <option value="Cosplay Props">Cosplay Props</option>
-            <option value="Wallet">Wallet</option>
+            <option value="Wallet">Walllet</option>
             <option value="Bag / Pouch">Bag / Pouch</option>
             <option value="Merch">Merch</option>
             <option value="Miscellaneous">Miscellaneous</option>
@@ -436,7 +417,7 @@ function AddFoundItemPhone() {
               : 'bg-blue-500 hover:bg-blue-600'
           }`}
         >
-          {loading ? 'Registering...' : imagePath ? 'Add Found Item' : 'Waiting for Image...'}
+          {loading ? 'Adding...' : imagePath ? 'Add Found Item' : 'Waiting for Image...'}
         </button>
       </form>
     </div>
