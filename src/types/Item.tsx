@@ -1,14 +1,13 @@
 export interface Item {
   id: string;
-  code?: string;
   name: string;
-  status: "lost" | "found";
-  type: "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
+  status: 'found' | 'lost';
+  type: string;
   location: string;
   description: string;
   contact: string;
   solved: boolean;
-  image: string | null;
-  created_at: Date;
+  image?: string;
+  item_code?: string; 
+  created_at?: string;
 }
-

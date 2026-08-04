@@ -36,7 +36,6 @@ function AddLostItemPhone() {
   const [notification, setNotification] = useState<string | null>(null);
   const pollingIntervalRef = useRef<number | null>(null);
 
-  // Start TCP Server
   const startTcpServer = async () => {
     try {
       setMessage("Starting server...");
@@ -44,7 +43,6 @@ function AddLostItemPhone() {
       setConnectionInfo(result);
       setServerRunning(true);
       
-      // Generate QR Code
       const connectionData = JSON.stringify({
         ip: result.ip,
         port: result.port,
@@ -63,7 +61,6 @@ function AddLostItemPhone() {
       setQrCodeUrl(qrUrl);
       setMessage(`Server started on ${result.ip}:${result.port}`);
       
-      // Start polling for images
       startPolling();
     } catch (error) {
       console.error('Failed to start TCP server:', error);
@@ -72,7 +69,6 @@ function AddLostItemPhone() {
     }
   };
 
-  // Poll for incoming images
   const startPolling = () => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -92,7 +88,6 @@ function AddLostItemPhone() {
           const fullPath = `${folderPath}/${fileName}`;
           setImagePath(fullPath);
 
-          // Display preview on canvas
           const blob = new Blob([bytes], { type: 'image/jpeg' });
           const url = URL.createObjectURL(blob);
           const img = new Image();
@@ -112,10 +107,10 @@ function AddLostItemPhone() {
           setMessage("Image received successfully!");
         }
       } catch (error) {
-        // No image available yet, continue polling
-        // Don't log errors to avoid console spam
+        console.error('Polling error:', error);
+        setMessage("Polling error: " + error);
       }
-    }, 500); // Poll every 500ms
+    }, 500); 
   };
 
   const stopPolling = () => {
@@ -125,7 +120,6 @@ function AddLostItemPhone() {
     }
   };
 
-  // Stop TCP Server
   const stopTcpServer = async () => {
     try {
       stopPolling();
@@ -150,7 +144,6 @@ function AddLostItemPhone() {
   };
 
   useEffect(() => {
-    // Auto-start TCP server when component mounts
     startTcpServer();
 
     return () => {

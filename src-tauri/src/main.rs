@@ -1,6 +1,3 @@
-// Complete src-tauri/src/main.rs file
-
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::State;
@@ -48,15 +45,12 @@ fn start_tcp_server(state: State<TcpServerState>) -> Result<ConnectionInfo, Stri
         return Err("Server is already running".to_string());
     }
 
-    // Get local IP address
     let local_ip = local_ip().map_err(|e| format!("Failed to get local IP: {}", e))?;
     
-    // Bind to a port (try 8080, if taken, let OS assign)
     let listener = TcpListener::bind("0.0.0.0:8080")
         .or_else(|_| TcpListener::bind("0.0.0.0:0"))
         .map_err(|e| format!("Failed to bind TCP listener: {}", e))?;
     
-    // Set non-blocking mode to prevent hanging
     listener.set_nonblocking(true)
         .map_err(|e| format!("Failed to set non-blocking: {}", e))?;
     
@@ -67,7 +61,6 @@ fn start_tcp_server(state: State<TcpServerState>) -> Result<ConnectionInfo, Stri
     *state.listener.lock().map_err(|e| e.to_string())? = Some(listener);
     *running = true;
 
-    // Start background thread to accept connections
     let pending_image = Arc::clone(&state.pending_image);
     let listener_arc = Arc::clone(&state.listener);
     let running_arc = Arc::clone(&state.running);
@@ -127,19 +120,15 @@ fn start_tcp_server(state: State<TcpServerState>) -> Result<ConnectionInfo, Stri
 }
 
 fn handle_client(mut stream: TcpStream) -> Result<ImageData, String> {
-    // IMPORTANT: Set blocking mode for this stream
-    // The listener is non-blocking, but each client connection should be blocking
     stream.set_nonblocking(false)
         .map_err(|e| format!("Failed to set blocking mode: {}", e))?;
     
-    // Set read timeout to prevent hanging
     stream.set_read_timeout(Some(Duration::from_secs(30)))
         .map_err(|e| format!("Failed to set read timeout: {}", e))?;
     
     stream.set_write_timeout(Some(Duration::from_secs(5)))
         .map_err(|e| format!("Failed to set write timeout: {}", e))?;
 
-    // Read the image data size
     let mut size_buf = [0u8; 4];
     stream.read_exact(&mut size_buf)
         .map_err(|e| format!("Failed to read size: {}", e))?;
@@ -147,7 +136,7 @@ fn handle_client(mut stream: TcpStream) -> Result<ImageData, String> {
     let image_size = u32::from_be_bytes(size_buf) as usize;
     println!("Expecting image size: {} bytes", image_size);
     
-    if image_size > 10_000_000 { // 10MB limit
+    if image_size > 10_000_000 { 
         return Err("Image too large (max 10MB)".to_string());
     }
 
@@ -155,21 +144,18 @@ fn handle_client(mut stream: TcpStream) -> Result<ImageData, String> {
         return Err("Invalid image size (0 bytes)".to_string());
     }
 
-    // Read image data with progress tracking
     let mut image_data = vec![0u8; image_size];
     stream.read_exact(&mut image_data)
         .map_err(|e| format!("Failed to read image data: {}", e))?;
 
     println!("Image received completely: {} bytes", image_size);
 
-    // Send acknowledgment
     stream.write_all(b"OK")
         .map_err(|e| format!("Failed to send acknowledgment: {}", e))?;
     
     stream.flush()
         .map_err(|e| format!("Failed to flush stream: {}", e))?;
 
-    // Give time for client to receive acknowledgment before closing
     thread::sleep(Duration::from_millis(100));
 
     Ok(ImageData {
@@ -186,7 +172,6 @@ fn stop_tcp_server(state: State<TcpServerState>) -> Result<(), String> {
     *running = false;
     *listener = None;
     
-    // Clear any pending images
     let mut pending = state.pending_image.lock().map_err(|e| e.to_string())?;
     *pending = None;
     

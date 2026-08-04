@@ -30,25 +30,26 @@ function FoundItems() {
   };
 
   const filteredItems = foundItems
-  .filter((item) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(term) ||
-      item.type.toLowerCase().includes(term) ||
-      item.location.toLowerCase().includes(term) ||
-      item.contact.toLowerCase().includes(term) ||
-      item.description.toLowerCase().includes(term)
-    );
-  })
-  .sort((a, b) => {
-    if (a.solved === b.solved) return 0;
-    return a.solved ? 1 : -1;
-  });
+    .filter((item) => {
+      const term = searchTerm.toLowerCase();
+      return (
+        item.name.toLowerCase().includes(term) ||
+        item.type.toLowerCase().includes(term) ||
+        item.location.toLowerCase().includes(term) ||
+        item.contact.toLowerCase().includes(term) ||
+        item.description.toLowerCase().includes(term) ||
+        (item.item_code ?? '').toLowerCase().includes(term)
+      );
+    })
+    .sort((a, b) => {
+      if (a.solved === b.solved) return 0;
+      return a.solved ? 1 : -1;
+    });
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentItems = filteredItems.slice(startIndex, startIndex + itemsPerPage);
-  
+
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -82,7 +83,7 @@ function FoundItems() {
       <div className="px-4 mb-4">
         <input
           type="text"
-          placeholder="Search by name, type, or location..."
+          placeholder="Search by name, type, location, or item code..."
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -101,6 +102,7 @@ function FoundItems() {
           <table className="mt-2 min-w-full border-collapse border border-gray-300">
             <thead>
               <tr className="bg-gray-100">
+                <th className="border border-gray-300 px-4 py-2 text-center">Code</th>
                 <th className="border border-gray-300 px-4 py-2 text-center">Name</th>
                 <th className="border border-gray-300 px-4 py-2 text-center">Type</th>
                 <th className="border border-gray-300 px-4 py-2 text-center">Location</th>

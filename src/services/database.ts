@@ -1,15 +1,15 @@
 import Database from '@tauri-apps/plugin-sql';
 import type { Item } from '../types/Item';
 import { BaseDirectory, exists, mkdir, readFile, writeFile, remove } from '@tauri-apps/plugin-fs';
+import dotenv from "dotenv";
+
+dotenv.config();
 let db: Database | null = null;
+let isSyncing = false;
+const SYNC_INTERVAL_MS = 30 * 1000;
+export const VPS_URL = process.env.VPS_URL;
 
 export async function initDatabase() {
-
-  // await remove('', {
-  //   baseDir: BaseDirectory.AppData,
-  //   recursive: true,
-  // });
-
   if (db) return db;
 
   db = await Database.load('sqlite:lostfound.db');
@@ -25,6 +25,7 @@ export async function initDatabase() {
       contact TEXT NOT NULL,
       solved INTEGER DEFAULT 0,
       image TEXT,
+      item_code TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -59,9 +60,9 @@ export async function addItem(item: Omit<Item, 'id' | 'created_at'>): Promise<vo
   const id = crypto.randomUUID();
 
   await database.execute(
-    `INSERT INTO items (id, name, status, type, location, description, contact, solved, image)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [id, item.name, item.status, item.type, item.location, item.description, item.contact, item.solved ? 1 : 0, item.image]
+    `INSERT INTO items (id, name, status, type, location, description, contact, solved, image, item_code)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [id, item.name, item.status, item.type, item.location, item.description, item.contact, item.solved ? 1 : 0, item.image, item.item_code ?? null]
   );
 
   console.log('Item added successfully:', id);
@@ -86,15 +87,16 @@ export async function updateItem(item: Item): Promise<void> {
   const database = await initDatabase();
   await database.execute(
     `UPDATE items 
-    SET name = $1, 
-        type = $2, 
-        location = $3, 
-        description = $4, 
-        contact = $5, 
-        status = $6, 
-        solved = $7, 
-        image = $8
-    WHERE id = $9`,
+     SET name        = $1,
+         type        = $2,
+         location    = $3,
+         description = $4,
+         contact     = $5,
+         status      = $6,
+         solved      = $7,
+         image       = $8,
+         item_code   = $9
+     WHERE id = $10`,
     [
       item.name,
       item.type,
@@ -104,6 +106,7 @@ export async function updateItem(item: Item): Promise<void> {
       item.status,
       item.solved ? 1 : 0,
       item.image,
+      item.item_code ?? null,
       item.id,
     ]
   );
@@ -112,8 +115,8 @@ export async function updateItem(item: Item): Promise<void> {
 export async function addItemWithId(item: Item): Promise<void> {
   const database = await initDatabase();
   await database.execute(
-    `INSERT INTO items (id, name, status, type, location, description, contact, solved, image, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    `INSERT INTO items (id, name, status, type, location, description, contact, solved, image, item_code, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       item.id,
       item.name,
@@ -124,15 +127,47 @@ export async function addItemWithId(item: Item): Promise<void> {
       item.contact,
       item.solved ? 1 : 0,
       item.image,
+      item.item_code ?? null,
       item.created_at,
     ]
   );
 }
 
-let isSyncing = false;
-const SYNC_INTERVAL_MS = 30 * 1000;
-// const VPS_URL = import.meta.env.CONTABO_VPS;
-const VPS_URL = "";
+export async function registerItemWithServer(
+  item: Omit<Item, 'id' | 'created_at'>,
+  imageBlob?: Uint8Array,
+  imagePath?: string
+): Promise<string> {
+  const id = crypto.randomUUID();
+  const created_at = new Date().toISOString();
+
+  const fullItem: Item = { ...item, id, created_at };
+
+  const formData = new FormData();
+  formData.append('item', JSON.stringify(fullItem));
+
+  if (imageBlob && imageBlob.length > 0 && imagePath) {
+    const filename = imagePath.split('/').pop() ?? 'image.jpg';
+    formData.append('image', new Blob([imageBlob.buffer.slice(0) as ArrayBuffer], { type: 'image/jpeg' }), filename);
+    formData.append('imagePath', imagePath);
+  }
+
+  const res = await fetch(`${VPS_URL}/register-item`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Server registration failed (${res.status}): ${body}`);
+  }
+
+  const { itemCode } = await res.json();
+
+  await addItemWithId({ ...fullItem, image: imagePath ?? item.image, item_code: itemCode });
+
+  return itemCode as string;
+}
 
 async function ensureDir(filepath: string) {
   const dir = filepath.substring(0, filepath.lastIndexOf('/'));
@@ -156,7 +191,7 @@ export async function syncWithServer(): Promise<void> {
 
     const localItems = await getAllItems();
     for (const item of localItems) {
-      let dbImagePath = item.image; 
+      let dbImagePath = item.image;
 
       if (dbImagePath && !dbImagePath.startsWith('http')) {
         const localFullPath = dbImagePath;
@@ -192,7 +227,6 @@ export async function syncWithServer(): Promise<void> {
     for (const remote of remoteItems) {
       if (remote.image) {
         try {
-          console.log(remote.image);
           const url = new URL(remote.image, VPS_URL);
 
           if (
@@ -201,7 +235,6 @@ export async function syncWithServer(): Promise<void> {
           ) {
             if (!(await exists(remote.image, { baseDir: BaseDirectory.AppData }))) {
               const imageUrl = url.href;
-              console.log("Downloaded image:" + imageUrl);
               const res = await fetch(imageUrl);
               if (res.ok) {
                 const arrayBuffer = await res.arrayBuffer();
@@ -224,6 +257,7 @@ export async function syncWithServer(): Promise<void> {
         contact: remote.contact,
         solved: Boolean(remote.solved),
         image: remote.image || undefined,
+        item_code: remote.item_code || undefined,
         created_at: remote.local_created_at || remote.created_at,
       };
 
@@ -249,10 +283,6 @@ export function startAutoSync(): void {
   setInterval(syncWithServer, SYNC_INTERVAL_MS);
 }
 
-/**
- * Wipe the local SQLite database, image folders, and sync timestamp.
- * Use for dev/reset purposes only.
- */
 export async function resetLocalData(): Promise<void> {
   if (db) {
     await db.close();
