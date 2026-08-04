@@ -1,4 +1,4 @@
-# Lost and Found (Comic Frontier / Comifuro)
+# Lost and Found
 
 Lost and Found Tauri is a Tauri desktop companion app (React + TypeScript) used together with a Flutter mobile app to collect and manage lost-and-found photos and item records for events. The codebase for the supporting mobile app is https://github.com/Julian-Caleb/LostAndFoundFlutter.
 
