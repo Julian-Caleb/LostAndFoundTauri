@@ -105,6 +105,7 @@ const goToPage = (page: number) => {
             <thead>
               <tr className="bg-gray-100">
                 <th className="border border-gray-300 px-4 py-2 text-center">Name</th>
+                <th className="border border-gray-300 px-4 py-2 text-center">Tag ID</th>
                 <th className="border border-gray-300 px-4 py-2 text-center">Type</th>
                 <th className="border border-gray-300 px-4 py-2 text-center">Location</th>
                 <th className="border border-gray-300 px-4 py-2 text-center">Contact</th>
@@ -115,7 +116,7 @@ const goToPage = (page: number) => {
             </thead>
             <tbody>
               {currentItems.map((item, index) => (
-                <ItemPreview key={startIndex + index} item={item} />
+                <ItemPreview key={startIndex + index} item={item} showTagId />
               ))}
             </tbody>
           </table>

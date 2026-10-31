@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { addItem, getAllItems } from "../services/database";
+import { addItem } from "../services/database";
 import type { Item } from "../types/Item";
 import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
-
-type ItemType = "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
+import { ItemType } from "../types/ItemType";
 
 // Capture and add found item using webcam.
 function AddFoundItemWebcam() {
@@ -21,11 +20,41 @@ function AddFoundItemWebcam() {
   
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
+  const [addedTagId, setAddedTagId] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [notification, setNotification] = useState<string | null>(null);
+
+  const handleGallerySelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      setImageBlob(new Uint8Array(await file.arrayBuffer()));
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      setImagePath(`found_images/found_${Date.now()}_${safeFileName}`);
+
+      const previewUrl = URL.createObjectURL(file);
+      const previewImage = new Image();
+      previewImage.onload = () => {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext("2d");
+        if (canvas && context) {
+          canvas.width = previewImage.width;
+          canvas.height = previewImage.height;
+          context.drawImage(previewImage, 0, 0);
+        }
+        URL.revokeObjectURL(previewUrl);
+      };
+      previewImage.src = previewUrl;
+    } catch (error) {
+      console.error("Could not load selected image:", error);
+      setMessage("Failed to load selected image");
+    }
+  };
 
   // Start video stream from selected camera device.
 const startCamera = async (deviceId?: string) => {
@@ -181,18 +210,9 @@ const handleSubmit = async (e: React.FormEvent) => {
         image: imagePath
       };
 
-      await addItem(newItem);
-      setMessage("Item added successfully!");
-      
-      const allItems = await getAllItems();
-      console.log('Total items in database after adding:', allItems.length);
-
-      setNotification("Found item added succesfully!");
-      
+      const { tag_id } = await addItem(newItem);
       stopCamera();
-      setTimeout(() => {
-        navigate('/');
-      }, 1500);
+      setAddedTagId(tag_id);
     } catch (error) {
       console.error('Error adding item:', error);
       setMessage("Failed to add item: " + error);
@@ -201,6 +221,26 @@ const handleSubmit = async (e: React.FormEvent) => {
       setLoading(false);
     }
   };
+
+  if (addedTagId !== null) {
+    return (
+      <div className="w-full max-w-2xl mx-auto p-6">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-8 text-center">
+          <h2 className="text-2xl font-bold text-green-800">Found item added successfully</h2>
+          <p className="mt-4 text-gray-700">Item tag code:</p>
+          <p className="mt-2 rounded bg-white px-4 py-3 font-mono text-2xl font-bold text-gray-900">
+            {addedTagId}
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="mt-6 rounded bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700"
+          >
+            Continue to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-2xl mx-auto p-6">
@@ -236,6 +276,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         autoPlay
         playsInline
         className="w-48 h-36 rounded border mb-4"
+        style={{ transform: 'scaleX(-1)' }}
       />
 
       {devices.length > 1 && (
@@ -261,11 +302,16 @@ const handleSubmit = async (e: React.FormEvent) => {
       )}
 
       <button
+        type="button"
         className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer"
         onClick={captureImage}
       >
-        Capture
+        Take a picture
       </button>
+      <label className="ml-2 inline-block cursor-pointer rounded bg-blue-500 px-3 py-2 text-white hover:bg-blue-600">
+        Upload from gallery
+        <input type="file" accept="image/*" className="hidden" onChange={handleGallerySelection} />
+      </label>
   
       <canvas className="mb-4" ref={canvasRef}></canvas>
 
@@ -293,6 +339,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             <option value="Bag / Pouch">Bag / Pouch</option>
             <option value="Merch">Merch</option>
             <option value="Miscellaneous">Miscellaneous</option>
+            <option value="Test">Test</option>
         </select>
       
         <label className="block text-sm font-medium mb-1">Hall Location (Found Location, Optional)</label>

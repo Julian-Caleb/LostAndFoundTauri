@@ -1,8 +1,11 @@
+import { ItemType } from "./ItemType";
+
 export interface Item {
   id: string;
+  tag_id?: string | null;
   name: string;
   status: 'found' | 'lost';
-  type: string;
+  type: ItemType;
   location: string;
   description: string;
   contact: string;
@@ -10,4 +13,5 @@ export interface Item {
   image?: string;
   item_code?: string; 
   created_at?: string;
+  updated_at?: string;
 }

@@ -20,14 +20,15 @@ This project supports organizers and volunteers at Comic Frontier by providing a
 - Add lost or found items via webcam capture.
 - Add lost or found items via phone using QR-coded TCP upload.
 - Local SQLite database of items with full CRUD operations.
+- Globally unique found-item tags allocated in per-type blocks of 5 and cached locally for offline use.
 - Automatic background sync to a remote VPS (Contabo) when available.
 - Local image caching and fallback download if remote images are missing.
 - Mark items as solved/unsolved and edit item details.
 - Reset local data for development or recovery.
 
-## How to use
+## How to use the app
 
-1. Install and run the Tauri desktop app (see project run scripts).
+1. Install and run the Tauri desktop app.
 2. On the homepage choose between Lost Items and Found Items.
 3. Add items using "Webcam" (desktop camera) or "Phone" (scan QR with the Flutter mobile app).
 4. For phone uploads, scan the QR code in the app to connect and upload an image.
@@ -38,4 +39,6 @@ This project supports organizers and volunteers at Comic Frontier by providing a
 
 - The Tauri backend exposes commands to start/stop a TCP image server and to receive images from phones.
 - The app stores images under AppData (lost_images, found_images) and keeps image paths in SQLite.
-- Configure the remote VPS URL via the environment or modify the VPS_URL constant in `src/services/database.ts`.
+- Configure the remote VPS URL via the environment or modify the VITE_SYNC_URL constant in `src/services/database.ts`.
+- Tag ranges are reserved from the server at startup and cached per device; a device needs a cached range or server access to issue a new tag. Local and server debug resets preserve reserved ranges and counters, so clearing items does not waste IDs or risk reusing tags.
+- Local item edits update `updated_at`; sync pulls server changes first and applies the newer timestamp before uploading newer local rows.

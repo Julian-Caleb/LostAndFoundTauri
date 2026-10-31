@@ -5,8 +5,8 @@ import type { Item } from "../types/Item";
 import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 import QRCode from 'qrcode';
-
-type ItemType = "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
+import { ItemType } from "../types/ItemType";
+import ImageSourcePicker from "../components/ImageSourcePicker";
 
 interface ConnectionInfo {
   ip: string;
@@ -36,6 +36,28 @@ function AddLostItemPhone() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const pollingIntervalRef = useRef<number | null>(null);
+
+  const handleImageSelected = async (image: Blob, fileName: string) => {
+    const bytes = new Uint8Array(await image.arrayBuffer());
+    const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fullPath = `lost_images/lost_${Date.now()}_${safeFileName}`;
+    setImageBlob(bytes);
+    setImagePath(fullPath);
+
+    const url = URL.createObjectURL(image);
+    const previewImage = new Image();
+    previewImage.onload = () => {
+      const canvas = canvasRef.current;
+      const context = canvas?.getContext('2d');
+      if (canvas && context) {
+        canvas.width = previewImage.width;
+        canvas.height = previewImage.height;
+        context.drawImage(previewImage, 0, 0);
+      }
+      URL.revokeObjectURL(url);
+    };
+    previewImage.src = url;
+  };
 
   // Start TCP Server
   // Start Tcp server and generate QR code for phone.
@@ -184,8 +206,8 @@ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!imagePath) {
-      setMessage("Please wait for an image from phone");
-      setNotification("No image received yet");
+      setMessage("Please take a picture, upload one from the gallery, or receive one from a phone");
+      setNotification("No image selected yet");
       return;
     }
 
@@ -342,6 +364,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       {/* Image Preview */}
       <div className="mb-4">
         <h4 className="text-sm font-medium mb-2">Image Preview:</h4>
+        <ImageSourcePicker onImageSelected={handleImageSelected} />
         <canvas 
           ref={canvasRef} 
           className="border border-gray-300 rounded max-w-full bg-gray-50"
@@ -384,6 +407,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             <option value="Bag / Pouch">Bag / Pouch</option>
             <option value="Merch">Merch</option>
             <option value="Miscellaneous">Miscellaneous</option>
+            <option value="Test">Test</option>
           </select>
         </div>
       

@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { addItem, getAllItems } from "../services/database";
 import type { Item } from "../types/Item";
 import { BaseDirectory, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
-
-type ItemType = "Phone" | "Card" | "Cosplay Props" | "Wallet" | "Bag / Pouch" | "Merch" | "Miscellaneous";
+import { ItemType } from "../types/ItemType";
 
 // Capture and add lost item using webcam.
 function AddLostItemWebcam() {
@@ -27,6 +26,35 @@ function AddLostItemWebcam() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [notification, setNotification] = useState<string | null>(null);
+
+  const handleGallerySelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      setImageBlob(new Uint8Array(await file.arrayBuffer()));
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      setImagePath(`lost_images/lost_${Date.now()}_${safeFileName}`);
+
+      const previewUrl = URL.createObjectURL(file);
+      const previewImage = new Image();
+      previewImage.onload = () => {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext("2d");
+        if (canvas && context) {
+          canvas.width = previewImage.width;
+          canvas.height = previewImage.height;
+          context.drawImage(previewImage, 0, 0);
+        }
+        URL.revokeObjectURL(previewUrl);
+      };
+      previewImage.src = previewUrl;
+    } catch (error) {
+      console.error("Could not load selected image:", error);
+      setMessage("Failed to load selected image");
+    }
+  };
 
   // Start video stream from selected camera device.
 const startCamera = async (deviceId?: string) => {
@@ -237,6 +265,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         autoPlay
         playsInline
         className="w-48 h-36 rounded border mb-4"
+        style={{ transform: 'scaleX(-1)' }}
       />
 
       {devices.length > 1 && (
@@ -262,11 +291,16 @@ const handleSubmit = async (e: React.FormEvent) => {
       )}
 
       <button
+        type="button"
         className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer"
         onClick={captureImage}
       >
-        Capture
+        Take a picture
       </button>
+      <label className="ml-2 inline-block cursor-pointer rounded bg-blue-500 px-3 py-2 text-white hover:bg-blue-600">
+        Upload from gallery
+        <input type="file" accept="image/*" className="hidden" onChange={handleGallerySelection} />
+      </label>
   
       <canvas className="mb-4" ref={canvasRef}></canvas>
 
@@ -294,6 +328,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             <option value="Bag / Pouch">Bag / Pouch</option>
             <option value="Merch">Merch</option>
             <option value="Miscellaneous">Miscellaneous</option>
+            <option value="Test">Test</option>
         </select>
       
         <label className="block text-sm font-medium mb-1">Last Known Location (Optional)</label>

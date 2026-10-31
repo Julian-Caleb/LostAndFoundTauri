@@ -3,19 +3,26 @@ import { Item } from "../types/Item";
 import { BaseDirectory, mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { updateItemSolvedStatus } from "../services/database";
 import { useNavigate } from "react-router-dom";
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+
+const VITE_SYNC_URL: string = (import.meta.env.VITE_SYNC_URL ?? '').replace(/\/+$/, '');
 
 interface ItemPreviewProps {
   item: Item;
+  showTagId?: boolean;
 }
 
 // Render item row with details and controls.
-function ItemPreview({ item }: ItemPreviewProps) {
+function ItemPreview({ item, showTagId = false }: ItemPreviewProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [solved, setSolved] = useState(item.solved); 
   const [imgSrc, setImgSrc] = useState<string | undefined>(undefined);
   const [notification, setNotification] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    setSolved(item.solved);
+  }, [item.solved]);
 
   // Load image from appdata or remote server.
 const loadImage = async (path: string) => {
@@ -33,7 +40,7 @@ const loadImage = async (path: string) => {
       
       try {
         console.log(`📥 Downloading image from server: ${path}`);
-        const response = await fetch(`http://167.86.87.130:3000/download-image?imagePath=${encodeURIComponent(path)}`);
+        const response = await tauriFetch(`${VITE_SYNC_URL}/download-image?imagePath=${encodeURIComponent(path)}`);
         
         if (!response.ok) {
           throw new Error(`Server responded with ${response.status}`);
@@ -62,6 +69,13 @@ const loadImage = async (path: string) => {
         return url;
       } catch (downloadErr) {
         console.error("Error downloading image from server:", downloadErr);
+        if (VITE_SYNC_URL) {
+          const imageUrl = /^https?:\/\//i.test(path)
+            ? path
+            : `${VITE_SYNC_URL}/${path.split('/').map(encodeURIComponent).join('/')}`;
+          console.log(`Trying direct image URL: ${imageUrl}`);
+          return imageUrl;
+        }
       }
     }
   };
@@ -90,7 +104,6 @@ const handleSolvedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const confirmed = window.confirm(`Are you sure you want to ${action}?`);
 
     if (!confirmed) {
-      e.target.checked = !newSolved;
       return;
     }
 
@@ -98,21 +111,29 @@ const handleSolvedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
     try {
       await updateItemSolvedStatus(item.id, newSolved);
+    } catch (err) {
+      console.error("Error saving solved status locally:", err);
+      setNotification("Error saving status locally");
+      setSolved(!newSolved);
+      return;
+    }
 
-      await fetch(`http://167.86.87.130:3000/update-solved/${item.id}`, {
+    try {
+      const response = await tauriFetch(`${VITE_SYNC_URL}/update-solved/${item.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ solved: newSolved }),
       });
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}`);
+      }
 
       setNotification(newSolved ? "Item marked as solved!" : "Item marked as unsolved!");
     } catch (err) {
-      console.error("Error updating solved status:", err);
-      setNotification("Error updating status");
-      setSolved(!newSolved);
-      e.target.checked = !newSolved;
+      console.warn("Remote solved-status update failed; the local change will sync later:", err);
+      setNotification("Saved locally; remote sync pending.");
     }
   };
 
@@ -121,9 +142,11 @@ const handleSolvedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         {notification && (
           <div className="fixed bottom-6 right-6 z-50 animate-fade-in">
             <div className={`px-6 py-3 rounded-lg shadow-lg ${
-              (notification.includes("Error") || !solved)
-                ? "bg-red-500 text-white" 
-                : "bg-green-500 text-white"
+              notification.includes("Error")
+                ? "bg-red-500 text-white"
+                : notification.includes("pending")
+                  ? "bg-amber-500 text-white"
+                  : "bg-green-500 text-white"
             }`}>
               {notification}
             </div>
@@ -132,6 +155,9 @@ const handleSolvedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         
         <tr className="py-4">
             <td className="border border-gray-300 px-4 py-2 text-left">{item.name}</td>
+            {showTagId && (
+              <td className="border border-gray-300 px-4 py-2 text-left">{item.tag_id ?? "—"}</td>
+            )}
             <td className="border border-gray-300 px-4 py-2 text-left">{item.type}</td>
             <td className="border border-gray-300 px-4 py-2 text-left">{item.location}</td>
             <td className="border border-gray-300 px-4 py-2 text-left">{item.contact}</td>
@@ -140,7 +166,7 @@ const handleSolvedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
               <label className="flex items-center justify-center space-x-2 cursor-pointer">
                 <input
                 type="checkbox"
-                checked={item.solved || solved}
+                checked={solved}
                 onChange={handleSolvedChange}
                 className="w-4 h-4"
                 />
@@ -156,7 +182,7 @@ const handleSolvedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
             </td>
         </tr>
         <tr>
-            <td colSpan={6}>
+            <td colSpan={showTagId ? 8 : 7}>
                 {showDetails && (
                     <div className="flex py-4 justify-evenly">
                         {item.image && (
@@ -168,6 +194,9 @@ const handleSolvedChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
                         )}
                         <div>
                             <p className="px-4 py-2 text-left"><span className="font-bold">Name:</span> {item.name}</p>
+                            {item.status === "found" && (
+                              <p className="px-4 py-2 text-left"><span className="font-bold">Tag ID:</span> {item.tag_id ?? "—"}</p>
+                            )}
                             <p className="px-4 py-2 text-left"><span className="font-bold">Type:</span> {item.type}</p>
                             <p className="px-4 py-2 text-left"><span className="font-bold">Last known location:</span> {item.location}</p>
                             <p className="px-4 py-2 text-left"><span className="font-bold">Contact:</span> {item.contact}</p>
