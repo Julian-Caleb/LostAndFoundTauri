@@ -5,5 +5,6 @@ export type ItemType =
     "Wallet" | 
     "Bag / Pouch" | 
     "Merch" | 
+    "Glasses" |
     "Miscellaneous" |
     "Test";

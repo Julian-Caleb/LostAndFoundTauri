@@ -36,6 +36,7 @@ const loadItems = async () => {
     const term = searchTerm.toLowerCase();
     return (
       item.name.toLowerCase().includes(term) ||
+      item.tag_id?.toLowerCase().includes(term) ||
       item.type.toLowerCase().includes(term) ||
       item.location.toLowerCase().includes(term) ||
       item.contact.toLowerCase().includes(term) ||
@@ -85,7 +86,7 @@ const goToPage = (page: number) => {
       <div className="px-4 mb-4">
         <input
           type="text"
-          placeholder="Search by name, type, or location..."
+          placeholder="Search by name, tag ID, type, or location..."
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);

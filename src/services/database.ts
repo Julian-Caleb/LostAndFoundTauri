@@ -223,7 +223,7 @@ export async function getItemById(id: string): Promise<Item | null> {
   return results.length > 0 ? results[0] : null;
 }
 
-// Update all fields of an existing item. An existing tag_id is never overwritten.
+// Update all fields of an existing item, including a regenerated tag ID.
 export async function updateItem(item: Item, updatedAt = new Date().toISOString()): Promise<void> {
   const database = await initDatabase();
   await database.execute(
@@ -236,7 +236,7 @@ export async function updateItem(item: Item, updatedAt = new Date().toISOString(
         status = $6, 
         solved = $7, 
         image = $8,
-        tag_id = COALESCE(tag_id, $9),
+        tag_id = $9,
         updated_at = $10
     WHERE id = $11`,
     [

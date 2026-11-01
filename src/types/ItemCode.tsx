@@ -7,6 +7,7 @@ export const TYPE_CODES: Record<ItemType, string> = {
   'Wallet': 'WL',
   'Bag / Pouch': 'BG',
   'Merch': 'MC',
+  'Glasses': 'GL',
   'Miscellaneous': 'MS',
   'Test': 'TS',
 };

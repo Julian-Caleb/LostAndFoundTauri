@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { Item } from "../types/Item";
 import { BaseDirectory, exists, mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs';
-import { deleteLocalImage, deleteRemoteImage, getItemById, updateItem } from "../services/database";
+import { deleteLocalImage, deleteRemoteImage, generateTagId, getItemById, updateItem } from "../services/database";
 
 function EditItemPage() {
   const { id } = useParams();
@@ -12,11 +12,13 @@ function EditItemPage() {
   const [selectedImageBytes, setSelectedImageBytes] = useState<Uint8Array | null>(null);
   const [selectedImagePath, setSelectedImagePath] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [updatedTagId, setUpdatedTagId] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
+  const savedTypeRef = useRef<Item["type"] | null>(null);
 
   useEffect(() => {
     const loadItem = async () => {
@@ -24,6 +26,7 @@ function EditItemPage() {
       const foundItem = await getItemById(id);
       if (foundItem) {
         setItem(foundItem);
+        savedTypeRef.current = foundItem.type;
         setSelectedImageBytes(null);
         setSelectedImagePath(null);
       }
@@ -209,7 +212,22 @@ function EditItemPage() {
         }
       }
 
-      await updateItem({ ...item, image: nextImagePath });
+      const updatedItem = { ...item, image: nextImagePath };
+      const tagNeedsRegeneration =
+        updatedItem.status === 'found' &&
+        (updatedItem.type !== savedTypeRef.current || !updatedItem.tag_id);
+      if (tagNeedsRegeneration) {
+        updatedItem.tag_id = await generateTagId(updatedItem.type);
+      }
+
+      await updateItem(updatedItem);
+      savedTypeRef.current = updatedItem.type;
+      setItem(updatedItem);
+      if (tagNeedsRegeneration) {
+        setUpdatedTagId(updatedItem.tag_id ?? null);
+        return;
+      }
+
       setNotification('Item updated successfully!');
       setTimeout(() => {
         navigate(-1);
@@ -221,6 +239,26 @@ function EditItemPage() {
   };
 
   if (!item) return <div className="p-6 text-center text-gray-500">Loading item...</div>;
+
+  if (updatedTagId) {
+    return (
+      <div className="w-full max-w-2xl mx-auto p-6">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-8 text-center">
+          <h2 className="text-2xl font-bold text-green-800">Item updated successfully</h2>
+          <p className="mt-4 text-gray-700">New tag ID for {item.type}:</p>
+          <p className="mt-2 rounded bg-white px-4 py-3 font-mono text-2xl font-bold text-gray-900">
+            {updatedTagId}
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-6 rounded bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700"
+          >
+            Back to Items
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-lg mx-auto">
@@ -325,9 +363,20 @@ function EditItemPage() {
         <option value="Wallet">Wallet</option>
         <option value="Bag / Pouch">Bag / Pouch</option>
         <option value="Merch">Merch</option>
+        <option value="Glasses">Glasses</option>
         <option value="Miscellaneous">Miscellaneous</option>
         <option value="Test">Test</option>
       </select>
+      {item.status === 'found' && item.type !== savedTypeRef.current && (
+        <p className="-mt-3 mb-4 text-sm text-blue-700">
+          Saving will generate a new tag ID for this type.
+        </p>
+      )}
+      {item.status === 'found' && (
+        <p className="-mt-3 mb-4 text-sm text-gray-600">
+          Current tag ID: {item.tag_id ?? 'None'}
+        </p>
+      )}
 
       <label className="block mb-2 font-semibold">Location</label>
       <input
